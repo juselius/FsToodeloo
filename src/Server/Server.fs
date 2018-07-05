@@ -13,11 +13,18 @@ open Fable.Remoting.Giraffe
 let publicPath = Path.GetFullPath "../Client/public"
 let port = 8085us
 
-let getInitCounter () : Task<Counter> = task { return 42 }
+let getInitTodo () : Task<list<Todo>> = 
+    task { return [ 
+        { taskId = 1
+          priority = 1
+          task = "From Server with love."
+          due = System.DateTime.Now
+        } ]
+    }
 
 let webApp =
     let server =
-        { getInitCounter = getInitCounter >> Async.AwaitTask }
+        { getInitTodo = getInitTodo >> Async.AwaitTask }
     remoting server {
         use_route_builder Route.builder
     }
