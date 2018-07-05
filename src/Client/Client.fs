@@ -12,7 +12,7 @@ open Shared
 open Fulma
 
 
-type Model = 
+type Model =
     { entries : list<Todo>
       todoForm : option<Todo>
       errorMsg : option<string>
@@ -43,18 +43,18 @@ module Server =
             use_route_builder Route.builder
         }
 
-let defaultTodo = 
+let defaultTodo =
     { taskId = 0
       priority = 0
-      task = "" 
+      task = ""
       due = System.DateTime.Now
     }
 
 
 let init () : Model * Cmd<Msg> =
-    let model = { 
-        entries = [] 
-        todoForm = None 
+    let model = {
+        entries = []
+        todoForm = None
         errorMsg = None
     }
     let cmd =
@@ -65,44 +65,44 @@ let init () : Model * Cmd<Msg> =
             (Error >> Init)
     model, cmd
 
-let addEntry (model : Model) (x : option<Todo>) = 
+let addEntry (model : Model) (x : option<Todo>) =
     let todo = model.entries
-    let newId = 
+    let newId =
         if todo.Length > 0 then
             todo |> List.map (fun a -> a.taskId) |>  List.max |> (+) 1
         else
             0
-    // perform any kind of validation here 
+    // perform any kind of validation here
     let validate = function
-        | Some task -> 
+        | Some task ->
             if task.taskId = 0 then
-                Ok { task with taskId = newId } 
-            else 
+                Ok { task with taskId = newId }
+            else
                 Error "Invalid task id"
         | None -> Error "What what in the b***?"
-    validate x |> Result.map (fun t -> 
-        { model with 
-            entries = t  :: todo 
+    validate x |> Result.map (fun t ->
+        { model with
+            entries = t  :: todo
             todoForm = None
         })
 
-let deleteEntry (model : Model) (x : int) = 
-    List.filter (fun a -> a.taskId <> x) model.entries 
+let deleteEntry (model : Model) (x : int) =
+    List.filter (fun a -> a.taskId <> x) model.entries
     |> fun e -> Ok { model with entries = e }
 
-let updateEntry (model : Model) (x : Todo) = 
-    let removeEntry x = 
-        List.filter (fun b -> b.taskId = x.taskId) model.entries 
-    List.tryFind (fun a -> a.taskId = x.taskId) model.entries 
-    |> Option.map (fun t -> 
+let updateEntry (model : Model) (x : Todo) =
+    let removeEntry x =
+        List.filter (fun b -> b.taskId = x.taskId) model.entries
+    List.tryFind (fun a -> a.taskId = x.taskId) model.entries
+    |> Option.map (fun t ->
         Ok { model with entries = t :: removeEntry x })
-        
+
 let updateAddTask (msg : AddTaskMsg) (model : Model) =
-    let form = 
+    let form =
         match model.todoForm with
         | Some x -> x
         | None -> defaultTodo
-    let setForm x = { model with todoForm = Some x } 
+    let setForm x = { model with todoForm = Some x }
     match msg with
     |  UpdateTask y -> setForm { form with task = y } |> Ok
     |  UpdatePri y ->  setForm { form with priority = y } |> Ok
@@ -113,11 +113,11 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
         match msg with
         | Add y -> addEntry model y
         | Delete y -> deleteEntry model y
-        | Update y -> 
+        | Update y ->
             match updateEntry model y with
             | Some v -> v
             | None -> Ok model
-        | Init (Ok x) -> Ok { 
+        | Init (Ok x) -> Ok {
                 entries = x
                 todoForm = None
                 errorMsg = None
@@ -149,67 +149,67 @@ let safeComponents =
         |> span [ ]
 
     p [ ]
-        [ strong [] [ str "TooDoo" ]
+        [ strong [] [ str "Toodeloo" ]
           str " powered by: "
           components ]
 
-let navbar = 
-    Navbar.navbar [ Navbar.Color IsDark ] [ 
-        Navbar.Item.div [ ] [ 
-            Heading.h3 
+let navbar =
+    Navbar.navbar [ Navbar.Color IsDark ] [
+        Navbar.Item.div [ ] [
+            Heading.h3
                 [ Heading.Modifiers [ Modifier.TextColor IsWhite ] ]
-                [ str "Jupiter TooDoo" ] 
-        ] 
-    ] 
+                [ str "JupiToodeloo" ]
+        ]
+    ]
 
 let button txt onClick =
-    Button.button [ 
+    Button.button [
         Button.IsFullWidth
         Button.Color IsPrimary
-        Button.OnClick onClick 
+        Button.OnClick onClick
     ] [ str txt ]
 
 let formAddTask (model : Model) (dispatch : Msg -> unit) =
-    let dispatch' = AddTaskMsg >> dispatch 
-    p [] [ 
+    let dispatch' = AddTaskMsg >> dispatch
+    p [] [
         Field.div [] [ Label.label [] [ str "Task" ] ]
-        Control.div [] [ Input.text [ 
+        Control.div [] [ Input.text [
           Input.OnChange (fun e -> dispatch' (UpdateTask e.Value))
           Input.Placeholder "Todo" ] ]
         Field.div [] [ Label.label [] [ str "Priority" ] ]
-        Control.div [] [ Input.number [ 
+        Control.div [] [ Input.number [
           Input.OnChange (fun e -> dispatch' (UpdatePri (int e.Value)))
           Input.Placeholder "0" ] ]
         Field.div [] [ Label.label [] [ str "Due" ] ]
-        Control.div [] [ Input.date [ 
+        Control.div [] [ Input.date [
           Input.OnChange (fun e -> dispatch' (UpdateDue (System.DateTime.Parse e.Value)))
           Input.Placeholder "date" ] ]
         Field.div [] [ Label.label [] [ str "" ] ]
         Control.div [] [ button "Add entry" (fun _ -> dispatch (Add model.todoForm)) ]
     ]
 
-let showTaskTable (model : Model) (dispatch : Msg -> unit) = 
+let showTaskTable (model : Model) (dispatch : Msg -> unit) =
       Table.table [] [
-          thead [] [ 
-              td [] [ str "Id" ] 
-              td [] [ str "Priority" ] 
-              td [] [ str "Task" ] 
-              td [] [ str "Due" ] 
-              td [] [ str "Delete" ] 
+          thead [] [
+              td [] [ str "Id" ]
+              td [] [ str "Priority" ]
+              td [] [ str "Task" ]
+              td [] [ str "Due" ]
+              td [] [ str "Delete" ]
           ]
           tbody [] [
             for i in model.entries do
-                yield (tr [] [ 
-                    td [] [ str (string i.taskId) ] 
-                    td [] [ str (string i.priority) ] 
-                    td [] [ str i.task ] 
-                    td [] [ str (string i.due) ] 
+                yield (tr [] [
+                    td [] [ str (string i.taskId) ]
+                    td [] [ str (string i.priority) ]
+                    td [] [ str i.task ]
+                    td [] [ str (string i.due) ]
                     td [] [
-                        Button.button [ 
+                        Button.button [
                             Button.Color IsDanger
-                            Button.IsOutlined 
+                            Button.IsOutlined
                             Button.OnClick (fun _ -> dispatch <| Delete i.taskId)
-                        ] [ str "X" ] 
+                        ] [ str "X" ]
                     ]
                 ])
           ]
@@ -218,43 +218,43 @@ let showTaskTable (model : Model) (dispatch : Msg -> unit) =
 let errorNotifier (model : Model) (dispatch : Msg -> unit) =
     match model.errorMsg with
     | Some err ->
-          Notification.notification [ Notification.Color IsDanger ] [ 
-              Notification.delete [ GenericOption.Props 
+          Notification.notification [ Notification.Color IsDanger ] [
+              Notification.delete [ GenericOption.Props
                 [ OnClick (fun _ -> dispatch ClearError)] ] []
-              str err 
+              str err
            ]
     | None -> div [] []
 
 let view (model : Model) (dispatch : Msg -> unit) =
-    div [] [ 
+    div [] [
       navbar
       errorNotifier model dispatch
-      Container.container [] [ 
-          Content.content [ Content.Modifiers [ 
-              Modifier.TextAlignment (Screen.All, TextAlignment.Centered) ] 
-          ] [ 
-              Heading.h3 [] [ str "My Toodeloo" ] 
+      Container.container [] [
+          Content.content [ Content.Modifiers [
+              Modifier.TextAlignment (Screen.All, TextAlignment.Centered) ]
+          ] [
+              Heading.h3 [] [ str "My Toodeloo" ]
               formAddTask model dispatch
         ]
       ]
-    
+
       Container.container [] [
           Content.content [] [
               showTaskTable model dispatch
-              p [] [ str (string model) ]  
+              p [] [ str (string model) ]
               Button.button [
                   Button.Color IsDanger
                   Button.OnClick (fun _ -> dispatch (NotifyError "fooo"))
-              ] [ str "Error" ] 
+              ] [ str "Error" ]
           ]
        ]
 
 
-      Footer.footer [] [ 
-          Content.content [ Content.Modifiers [ 
-              Modifier.TextAlignment (Screen.All, TextAlignment.Centered) ] 
-          ] [ safeComponents ] 
-      ] 
+      Footer.footer [] [
+          Content.content [ Content.Modifiers [
+              Modifier.TextAlignment (Screen.All, TextAlignment.Centered) ]
+          ] [ safeComponents ]
+      ]
     ]
 
 #if DEBUG
