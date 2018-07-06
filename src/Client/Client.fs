@@ -149,7 +149,7 @@ let safeComponents =
         |> span [ ]
 
     p [ ]
-        [ strong [] [ str "Toodeloo" ]
+        [ strong [] [ str "Jupitodo" ]
           str " powered by: "
           components ]
 
@@ -158,7 +158,7 @@ let navbar =
         Navbar.Item.div [ ] [
             Heading.h3
                 [ Heading.Modifiers [ Modifier.TextColor IsWhite ] ]
-                [ str "JupiToodeloo" ]
+                [ str "Jupitodo" ]
         ]
     ]
 
@@ -175,29 +175,32 @@ let formAddTask (model : Model) (dispatch : Msg -> unit) =
         Field.div [] [ Label.label [] [ str "Task" ] ]
         Control.div [] [ Input.text [
           Input.OnChange (fun e -> dispatch' (UpdateTask e.Value))
-          Input.Placeholder "Todo" ] ]
+          Input.Placeholder "Todo" ] 
+        ]
         Field.div [] [ Label.label [] [ str "Priority" ] ]
         Control.div [] [ Input.number [
           Input.OnChange (fun e -> dispatch' (UpdatePri (int e.Value)))
-          Input.Placeholder "0" ] ]
+          Input.Placeholder "0" ] 
+        ]
         Field.div [] [ Label.label [] [ str "Due" ] ]
         Control.div [] [ Input.date [
           Input.OnChange (fun e -> dispatch' (UpdateDue (System.DateTime.Parse e.Value)))
-          Input.Placeholder "date" ] ]
+          Input.Placeholder "date" ] 
+        ]
         Field.div [] [ Label.label [] [ str "" ] ]
         Control.div [] [ button "Add entry" (fun _ -> dispatch (Add model.todoForm)) ]
     ]
 
 let showTaskTable (model : Model) (dispatch : Msg -> unit) =
-      Table.table [] [
-          thead [] [
-              td [] [ str "Id" ]
-              td [] [ str "Priority" ]
-              td [] [ str "Task" ]
-              td [] [ str "Due" ]
-              td [] [ str "Delete" ]
-          ]
-          tbody [] [
+    Table.table [] [
+        thead [] [
+            td [] [ str "Id" ]
+            td [] [ str "Priority" ]
+            td [] [ str "Task" ]
+            td [] [ str "Due" ]
+            td [] [ str "Delete" ]
+        ]
+        tbody [] [
             for i in model.entries do
                 yield (tr [] [
                     td [] [ str (string i.taskId) ]
@@ -227,34 +230,27 @@ let errorNotifier (model : Model) (dispatch : Msg -> unit) =
 
 let view (model : Model) (dispatch : Msg -> unit) =
     div [] [
-      navbar
-      errorNotifier model dispatch
-      Container.container [] [
-          Content.content [ Content.Modifiers [
-              Modifier.TextAlignment (Screen.All, TextAlignment.Centered) ]
-          ] [
-              Heading.h3 [] [ str "My Toodeloo" ]
-              formAddTask model dispatch
+        navbar
+        errorNotifier model dispatch
+        Container.container [] [
+            Box.box' [           ] [
+                Heading.h3 [] [ str "My Jupitodo" ]
+                formAddTask model dispatch
+            ]
+            Box.box' [] [ showTaskTable model dispatch ]
+            Content.content [] [
+                Button.button [ 
+                    Button.Color IsDanger
+                    Button.OnClick (fun _ -> dispatch (NotifyError "fooo"))
+                ] [ str "Error" ]
+            ]
+            Box.box' [] [ str (string model) ]
         ]
-      ]
-
-      Container.container [] [
-          Content.content [] [
-              showTaskTable model dispatch
-              p [] [ str (string model) ]
-              Button.button [
-                  Button.Color IsDanger
-                  Button.OnClick (fun _ -> dispatch (NotifyError "fooo"))
-              ] [ str "Error" ]
-          ]
-       ]
-
-
-      Footer.footer [] [
-          Content.content [ Content.Modifiers [
-              Modifier.TextAlignment (Screen.All, TextAlignment.Centered) ]
-          ] [ safeComponents ]
-      ]
+        Footer.footer [] [
+            Content.content [ Content.Modifiers [
+                Modifier.TextAlignment (Screen.All, TextAlignment.Centered) ]
+            ] [ safeComponents ]
+        ]
     ]
 
 #if DEBUG
