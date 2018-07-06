@@ -2,12 +2,22 @@ namespace Shared
 
 open System
 
+type TaskId = int
+
 type Todo = 
-    { taskId : int
+    { taskId : TaskId
       priority : int
       task : string
       due : DateTime
     }
+
+module Defaults =
+    let defaultTodo = 
+        { taskId = 0
+          priority = 0
+          task = ""
+          due = System.DateTime.Now
+        }
 
 module Route =
     /// Defines how routes are generated on server and mapped from client

@@ -11,24 +11,35 @@ open Shared
 
 open Fulma
 
-
 type Model =
     { entries : list<Todo>
-      todoForm : option<Todo>
+      addForm : Todo
+      updateForm : Todo
       errorMsg : option<string>
+      editing : option<TaskId>
+    }
+
+let defaultModel = {
+    entries = [] 
+    addForm = Defaults.defaultTodo
+    updateForm = Defaults.defaultTodo
+    errorMsg = None
+    editing = None
     }
 
 type HandleTaskMsg =
 | UpdatePri of int
 | UpdateTask of string
 | UpdateDue of System.DateTime
+| EditTask of int
+| EndEdit 
 
 type Msg =
-| Add of option<Todo>
+| Add of Todo
 | Delete of int
 | Update of Todo
 | Init of Result<list<Todo>, exn>
-| HandleTaskMsg of HandleTaskMsg
+| HandleTask of HandleTaskMsg
 | NotifyError of string
 | ClearError
 
@@ -43,20 +54,8 @@ module Server =
             use_route_builder Route.builder
         }
 
-let defaultTodo =
-    { taskId = 0
-      priority = 0
-      task = ""
-      due = System.DateTime.Now
-    }
-
-
 let init () : Model * Cmd<Msg> =
-    let model = {
-        entries = []
-        todoForm = None
-        errorMsg = None
-    }
+    let model = defaultModel
     let cmd =
         Cmd.ofAsync
             Server.api.getInitTodo
@@ -65,7 +64,7 @@ let init () : Model * Cmd<Msg> =
             (Error >> Init)
     model, cmd
 
-let addEntry (model : Model) (x : option<Todo>) =
+let addEntry (model : Model) (x : Todo) =
     let todo = model.entries
     let newId =
         if todo.Length > 0 then
@@ -73,17 +72,15 @@ let addEntry (model : Model) (x : option<Todo>) =
         else
             0
     // perform any kind of validation here
-    let validate = function
-        | Some task ->
-            if task.taskId = 0 then
-                Ok { task with taskId = newId }
-            else
-                Error "Invalid task id"
-        | None -> Error "What what in the b***?"
+    let validate task = 
+        if task.taskId = 0 then
+            Ok { task with taskId = newId }
+        else
+            Error "What, what in the b***?"
     validate x |> Result.map (fun t ->
         { model with
             entries = t  :: todo
-            todoForm = None
+            addForm = Defaults.defaultTodo
         })
 
 let deleteEntry (model : Model) (x : int) =
@@ -92,40 +89,58 @@ let deleteEntry (model : Model) (x : int) =
 
 let updateEntry (model : Model) (x : Todo) =
     let removeEntry x =
-        List.filter (fun b -> b.taskId = x.taskId) model.entries
+        List.filter (fun b -> b.taskId <> x.taskId) model.entries
     List.tryFind (fun a -> a.taskId = x.taskId) model.entries
-    |> Option.map (fun t ->
-        Ok { model with entries = t :: removeEntry x })
+    |> function 
+    | Some _ -> Ok { model with entries = x :: removeEntry x }
+    | None -> Error "Update failed"
+
+let editTask model taskId = 
+    let t = 
+        match List.tryFind (fun a -> a.taskId = taskId) model.entries with
+        | Some x -> x
+        | None -> Defaults.defaultTodo
+    match model.editing with
+    | Some _ -> 
+        updateEntry model model.updateForm
+        |> Result.map (fun m -> 
+            { m with 
+                updateForm = Defaults.defaultTodo
+                editing = None 
+            })
+    | None -> 
+        { model with 
+            updateForm = t
+            editing = Some taskId
+        } |> Ok
 
 let handleTaskUpdate (msg : HandleTaskMsg) (model : Model) =
-    let form =
-        match model.todoForm with
-        | Some x -> x
-        | None -> defaultTodo
-    let setForm x = { model with todoForm = Some x }
+    let form = 
+        match model.editing with
+        | Some _ -> model.updateForm
+        | None   -> model.addForm
+    let setForm x = 
+        match model.editing with
+        | Some _ -> { model with updateForm = x }
+        | None   -> { model with addForm = x }
     match msg with
-    |  UpdateTask y -> setForm { form with task = y } |> Ok
-    |  UpdatePri y ->  setForm { form with priority = y } |> Ok
-    |  UpdateDue y ->  setForm { form with due = y } |> Ok
+    | UpdateTask y -> setForm { form with task = y } |> Ok
+    | UpdatePri y ->  setForm { form with priority = y } |> Ok
+    | UpdateDue y ->  setForm { form with due = y } |> Ok
+    | EditTask y  -> editTask model y
+    | EndEdit -> editTask model (form.taskId)
 
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
     let model' =
         match msg with
         | Add y -> addEntry model y
         | Delete y -> deleteEntry model y
-        | Update y ->
-            match updateEntry model y with
-            | Some v -> v
-            | None -> Ok model
-        | Init (Ok x) -> Ok {
-                entries = x
-                todoForm = None
-                errorMsg = None
-            }
+        | Update y -> updateEntry model y 
+        | Init (Ok x) -> Ok { defaultModel with entries = x }
         | Init (Error x) -> Error x.Message
         | NotifyError err -> Ok { model with errorMsg = Some err }
         | ClearError -> Ok { model with errorMsg = None }
-        | HandleTaskMsg x -> handleTaskUpdate x model
+        | HandleTask x -> handleTaskUpdate x model
     match model' with
     | Ok x -> x, Cmd.none
     | Error err -> model, (Cmd.ofMsg (NotifyError err))
@@ -170,28 +185,77 @@ let button txt onClick =
     ] [ str txt ]
 
 let formAddTask (model : Model) (dispatch : Msg -> unit) =
-    let dispatch' = HandleTaskMsg >> dispatch
+    let dispatch' = HandleTask >> dispatch
     p [] [
         Field.div [] [ Label.label [] [ str "Task" ] ]
         Control.div [] [ Input.text [
           Input.OnChange (fun e -> dispatch' (UpdateTask e.Value))
-          Input.Placeholder "Todo" ] 
+          Input.Placeholder "Todo" 
+          Input.Value model.addForm.task
+          ] 
         ]
         Field.div [] [ Label.label [] [ str "Priority" ] ]
         Control.div [] [ Input.number [
           Input.OnChange (fun e -> dispatch' (UpdatePri (int e.Value)))
-          Input.Placeholder "0" ] 
+          Input.Placeholder "0" 
+          Input.Value (string model.addForm.priority)
+          ] 
         ]
         Field.div [] [ Label.label [] [ str "Due" ] ]
         Control.div [] [ Input.date [
           Input.OnChange (fun e -> dispatch' (UpdateDue (System.DateTime.Parse e.Value)))
-          Input.Placeholder "date" ] 
+          Input.Placeholder "date" 
+          Input.Value (string model.addForm.due)
+          ] 
         ]
         Field.div [] [ Label.label [] [ str "" ] ]
-        Control.div [] [ button "Add entry" (fun _ -> dispatch (Add model.todoForm)) ]
+        Control.div [] [ button "Add entry" (fun _ -> dispatch (Add model.addForm)) ]
     ]
 
+let clickToEdit t txt (dispatch : Msg -> unit) = 
+    td [
+        OnDoubleClick (fun _ -> dispatch <| HandleTask (EditTask t.taskId))
+    ] [ str txt ]
+
 let showTaskTable (model : Model) (dispatch : Msg -> unit) =
+    let editable task txt elements =
+        match model.editing with
+        | Some n when n = task.taskId -> td [] elements
+        | Some _ -> clickToEdit task txt dispatch
+        | None   -> clickToEdit task txt dispatch
+    let task t = 
+        editable t t.task [ Input.text [ 
+                Input.DefaultValue t.task
+                Input.OnChange (fun e -> dispatch <| HandleTask (UpdateTask e.Value))
+          ]] 
+    let due t = 
+        editable t (string t.due) [ Input.date [ 
+                Input.DefaultValue (string t.due)
+                Input.OnChange (fun e -> dispatch <| HandleTask (UpdateDue <| System.DateTime.Parse e.Value))
+          ]] 
+    let pri t = 
+        editable t (string t.priority) [ Input.number [ 
+                Input.DefaultValue (string t.priority)
+                Input.OnChange (fun e -> dispatch <| HandleTask (UpdatePri <| int e.Value))
+          ]] 
+    let button i =
+            match model.editing with
+            | Some n when n = i.taskId ->
+                td [] [
+                    Button.button [
+                        Button.Color IsSuccess
+                        Button.IsOutlined
+                        Button.OnClick (fun _ -> dispatch <| HandleTask EndEdit)
+                    ] [ str "Save" ]
+                ]
+            | _ ->
+                td [] [
+                    Button.button [
+                        Button.Color IsDanger
+                        Button.IsOutlined
+                        Button.OnClick (fun _ -> dispatch <| Delete i.taskId)
+                    ] [ str "X" ]
+                ]
     Table.table [] [
         thead [] [
             td [] [ str "Id" ]
@@ -202,19 +266,13 @@ let showTaskTable (model : Model) (dispatch : Msg -> unit) =
         ]
         tbody [] [
             for i in model.entries do
-                yield (tr [] [
+                yield tr [] [
                     td [] [ str (string i.taskId) ]
-                    td [] [ str (string i.priority) ]
-                    td [] [ str i.task ]
-                    td [] [ str (string i.due) ]
-                    td [] [
-                        Button.button [
-                            Button.Color IsDanger
-                            Button.IsOutlined
-                            Button.OnClick (fun _ -> dispatch <| Delete i.taskId)
-                        ] [ str "X" ]
-                    ]
-                ])
+                    pri i
+                    task i
+                    due i
+                    button i
+                ]
           ]
       ]
 
