@@ -18,7 +18,7 @@ type Model =
       errorMsg : option<string>
     }
 
-type AddTaskMsg =
+type HandleTaskMsg =
 | UpdatePri of int
 | UpdateTask of string
 | UpdateDue of System.DateTime
@@ -28,7 +28,7 @@ type Msg =
 | Delete of int
 | Update of Todo
 | Init of Result<list<Todo>, exn>
-| AddTaskMsg of AddTaskMsg
+| HandleTaskMsg of HandleTaskMsg
 | NotifyError of string
 | ClearError
 
@@ -97,7 +97,7 @@ let updateEntry (model : Model) (x : Todo) =
     |> Option.map (fun t ->
         Ok { model with entries = t :: removeEntry x })
 
-let updateAddTask (msg : AddTaskMsg) (model : Model) =
+let handleTaskUpdate (msg : HandleTaskMsg) (model : Model) =
     let form =
         match model.todoForm with
         | Some x -> x
@@ -125,7 +125,7 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
         | Init (Error x) -> Error x.Message
         | NotifyError err -> Ok { model with errorMsg = Some err }
         | ClearError -> Ok { model with errorMsg = None }
-        | AddTaskMsg x -> updateAddTask x model
+        | HandleTaskMsg x -> handleTaskUpdate x model
     match model' with
     | Ok x -> x, Cmd.none
     | Error err -> model, (Cmd.ofMsg (NotifyError err))
@@ -170,7 +170,7 @@ let button txt onClick =
     ] [ str txt ]
 
 let formAddTask (model : Model) (dispatch : Msg -> unit) =
-    let dispatch' = AddTaskMsg >> dispatch
+    let dispatch' = HandleTaskMsg >> dispatch
     p [] [
         Field.div [] [ Label.label [] [ str "Task" ] ]
         Control.div [] [ Input.text [
