@@ -27,6 +27,7 @@ let defaultModel = {
     editing = None
     }
 
+// Example how to split Msg into submessages
 type HandleTaskMsg =
 | UpdatePri of int
 | UpdateTask of string
@@ -44,7 +45,6 @@ type Msg =
 | ClearError
 
 module Server =
-
     open Shared
     open Fable.Remoting.Client
 
@@ -71,18 +71,24 @@ let addEntry (model : Model) (x : Todo) =
             todo |> List.map (fun a -> a.taskId) |>  List.max |> (+) 1
         else
             0
-    // perform any kind of validation here
+    // Example validation, perform any kind of validation here and return
+    // either Ok or Error
     let validate task = 
         if task.taskId = 0 then
             Ok { task with taskId = newId }
         else
             Error "What, what in the b***?"
-    validate x |> Result.map (fun t ->
+    // Result is a functor, so we can map over it 
+    // (lift functions from acting on normal values to Result values)
+    // The output is a Result, either Ok or Error
+    validate x |> Result.map (fun t -> 
         { model with
             entries = t  :: todo
             addForm = Defaults.defaultTodo
         })
 
+// Both delete and update are complicated by using lists
+// Set would be a better choice 
 let deleteEntry (model : Model) (x : int) =
     List.filter (fun a -> a.taskId <> x) model.entries
     |> fun e -> Ok { model with entries = e }
@@ -96,10 +102,6 @@ let updateEntry (model : Model) (x : Todo) =
     | None -> Error "Update failed"
 
 let editTask model taskId = 
-    let t = 
-        match List.tryFind (fun a -> a.taskId = taskId) model.entries with
-        | Some x -> x
-        | None -> Defaults.defaultTodo
     match model.editing with
     | Some _ -> 
         updateEntry model model.updateForm
@@ -109,11 +111,18 @@ let editTask model taskId =
                 editing = None 
             })
     | None -> 
+        let todo = 
+            match List.tryFind (fun a -> a.taskId = taskId) model.entries with
+            | Some x -> x
+            | None -> Defaults.defaultTodo
         { model with 
-            updateForm = t
+            updateForm = todo
             editing = Some taskId
         } |> Ok
 
+// Reuse of Update messages complicates the update function
+// It would be better to have explicit messages for adding and updating,
+// and it would make the code easier to read and undestand. 
 let handleTaskUpdate (msg : HandleTaskMsg) (model : Model) =
     let form = 
         match model.editing with
@@ -150,7 +159,6 @@ let safeComponents =
         List.foldBack (fun x -> function
             | [] -> [x]
             | xs -> x::sep::xs) ls []
-
     let components =
         [
             "Saturn", "https://saturnframework.github.io/docs/"
@@ -162,7 +170,6 @@ let safeComponents =
         |> List.map (fun (desc,link) -> a [ Href link ] [ str desc ] )
         |> intersperse (str ", ")
         |> span [ ]
-
     p [ ]
         [ strong [] [ str "Jupitodo" ]
           str " powered by: "
@@ -212,6 +219,8 @@ let formAddTask (model : Model) (dispatch : Msg -> unit) =
         Control.div [] [ button "Add entry" (fun _ -> dispatch (Add model.addForm)) ]
     ]
 
+// Add a double click event to each editable td
+// It would be better to make the whole row double clickable
 let clickToEdit t txt (dispatch : Msg -> unit) = 
     td [
         OnDoubleClick (fun _ -> dispatch <| HandleTask (EditTask t.taskId))
@@ -256,13 +265,10 @@ let showTaskTable (model : Model) (dispatch : Msg -> unit) =
                         Button.OnClick (fun _ -> dispatch <| Delete i.taskId)
                     ] [ str "X" ]
                 ]
+    let cols = [ "Id"; "Priority"; "Task"; "Due"; "Delete" ]
     Table.table [] [
         thead [] [
-            td [] [ str "Id" ]
-            td [] [ str "Priority" ]
-            td [] [ str "Task" ]
-            td [] [ str "Due" ]
-            td [] [ str "Delete" ]
+            for i in cols do yield td [] [str i]
         ]
         tbody [] [
             for i in model.entries do
