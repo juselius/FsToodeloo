@@ -3,14 +3,16 @@ group Server
     source https://api.nuget.org/v3/index.json
 
     nuget FSharp.Core
-    nuget FSharp.Data prerelease
     nuget Saturn
-    nuget Fable.Remoting.Giraffe ~> 2.7
+    nuget Fable.Remoting.Giraffe 
 
-    nuget SQLProvider 1.1.31
-    nuget Npgsql 3.2.7  
-    #nuget System.Data.Common
-    nuget System.Diagnostics.PerformanceCounter
+group Db
+    storage: none
+    source https://api.nuget.org/v3/index.json
+
+    nuget SQLProvider 
+    nuget Npgsql  3.2.5
+    nuget System.Threading.Tasks.Extensions  4.4.0
 
 group Client
     storage: none
