@@ -1,0 +1,4 @@
+group Db
+    SQLProvider framework: net45
+    Npgsql
+    System.Threading.Tasks.Extensions
