@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 
-# n=$(docker images postgres-jupitodo | wc -l)
+# n=$(docker images postgres-toodeloo | wc -l)
 # if [ $n = 1 ]; then
-#     docker build -t postgres-jupitodo .
+#     docker build -t postgres-toodeloo .
 # fi
 docker run --rm --name jupidb \
     -e POSTGRES_PASSWORD=secret \
@@ -13,4 +13,4 @@ sleep 5
 docker cp db.sql jupidb:/
 docker cp schema.sql jupidb:/
 docker exec jupidb psql -f db.sql postgres postgres
-docker exec jupidb psql -f schema.sql jupitodo postgres
+docker exec jupidb psql -f schema.sql toodeloo postgres

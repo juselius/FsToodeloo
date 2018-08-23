@@ -7,7 +7,7 @@ let ResolutionPath = __SOURCE_DIRECTORY__ + "/bin/libs"
 
 type Db =
     SqlDataProvider<
-        ConnectionString = "Host=localhost;Database=jupitodo;Username=postgres;Password=secret;Port=5432;",
+        ConnectionString = "Host=localhost;Database=toodeloo;Username=postgres;Password=secret;Port=5432;",
         DatabaseVendor = Common.DatabaseProviderTypes.POSTGRESQL,
         Owner = "dbo",
         CaseSensitivityChange = Common.CaseSensitivityChange.ORIGINAL,

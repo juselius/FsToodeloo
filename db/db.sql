@@ -1,2 +1,2 @@
-CREATE DATABASE jupitodo;
+CREATE DATABASE toodeloo;
 

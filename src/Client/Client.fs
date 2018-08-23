@@ -171,7 +171,7 @@ let safeComponents =
         |> intersperse (str ", ")
         |> span [ ]
     p [ ]
-        [ strong [] [ str "Jupitodo" ]
+        [ strong [] [ str "Toodeloo" ]
           str " powered by: "
           components ]
 
@@ -180,7 +180,7 @@ let navbar =
         Navbar.Item.div [ ] [
             Heading.h3
                 [ Heading.Modifiers [ Modifier.TextColor IsWhite ] ]
-                [ str "Jupitodo" ]
+                [ str "Toodeloo" ]
         ]
     ]
 
@@ -298,7 +298,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
         errorNotifier model dispatch
         Container.container [] [
             Box.box' [           ] [
-                Heading.h3 [] [ str "My Jupitodo" ]
+                Heading.h3 [] [ str "My Toodeloo" ]
                 formAddTask model dispatch
             ]
             Box.box' [] [ showTaskTable model dispatch ]
