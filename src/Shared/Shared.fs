@@ -1,4 +1,4 @@
-namespace Shared
+module Toodeloo.Shared
 
 open System
 
@@ -8,7 +8,7 @@ type Todo =
     { taskId : TaskId
       priority : int
       task : string
-      due : DateTime
+      due : DateTime option
     }
 
 module Defaults =
@@ -16,7 +16,7 @@ module Defaults =
         { taskId = 0
           priority = 0
           task = ""
-          due = System.DateTime.Now
+          due = None
         }
 
 module Route =

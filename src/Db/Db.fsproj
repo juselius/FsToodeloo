@@ -5,7 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Library.fs" />
+    <Compile Include="../Shared/Shared.fs" />
+    <Compile Include="Db.fs" />
   </ItemGroup>
   <!-- The remaining defininitions are necessary in order to use the SQL type 
   provider with .NET Core. -->
