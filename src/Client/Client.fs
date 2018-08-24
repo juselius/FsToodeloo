@@ -2,14 +2,11 @@ module Client
 
 open Elmish
 open Elmish.React
-
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
 open Fable.PowerPack.Fetch
-
-open Shared
-
 open Fulma
+open Toodeloo.Shared
 
 type Model =
     { entries : list<Todo>
@@ -43,9 +40,10 @@ type Msg =
 | HandleTask of HandleTaskMsg
 | NotifyError of string
 | ClearError
+| NoOp
 
 module Server =
-    open Shared
+    open Toodeloo.Shared
     open Fable.Remoting.Client
 
     /// A proxy you can use to talk to server directly
@@ -54,12 +52,17 @@ module Server =
             use_route_builder Route.builder
         }
 
+let inline doAsync f x =
+    Cmd.ofAsync
+        f x
+        (fun _ -> Msg.NoOp)
+        ((fun x -> x.Message) >> Msg.NotifyError)
+
 let init () : Model * Cmd<Msg> =
     let model = defaultModel
     let cmd =
         Cmd.ofAsync
-            Server.api.getInitTodo
-            ()
+            Server.api.getTodos ()
             (Ok >> Init)
             (Error >> Init)
     model, cmd
@@ -72,53 +75,52 @@ let addEntry (model : Model) (x : Todo) =
         else
             0
     // Example validation, perform any kind of validation here and return
-    // either Ok or Error
-    let validate task = 
-        if task.taskId = 0 then
-            Ok { task with taskId = newId }
-        else
-            Error "What, what in the b***?"
-    // Result is a functor, so we can map over it 
-    // (lift functions from acting on normal values to Result values)
-    // The output is a Result, either Ok or Error
-    validate x |> Result.map (fun t -> 
-        { model with
-            entries = t  :: todo
-            addForm = Defaults.defaultTodo
-        })
+    match x.taskId with
+    | 0 -> 
+        let todo' = { x with taskId = newId } :: todo
+        let model' = { model with entries = todo' }
+        let cmd =  doAsync Server.api.createTodo x
+        model', cmd
+    | _ -> model, (Cmd.ofMsg (NotifyError "What, what in the b***?"))
 
 // Both delete and update are complicated by using lists
 // Set would be a better choice 
 let deleteEntry (model : Model) (x : int) =
     List.filter (fun a -> a.taskId <> x) model.entries
-    |> fun e -> Ok { model with entries = e }
+    |> fun e ->  
+        let model' = { model with entries = e }
+        let cmd = doAsync Server.api.deleteTodo x
+        model', cmd
 
 let updateEntry (model : Model) (x : Todo) =
     let removeEntry x =
         List.filter (fun b -> b.taskId <> x.taskId) model.entries
     List.tryFind (fun a -> a.taskId = x.taskId) model.entries
     |> function 
-    | Some _ -> Ok { model with entries = x :: removeEntry x }
-    | None -> Error "Update failed"
+    | Some _ ->
+        let model' = { model with entries = x :: removeEntry x }
+        let cmd =  doAsync Server.api.createTodo x
+        model', cmd
+    | None -> model, (Cmd.ofMsg (NotifyError "Update failed")) 
 
 let editTask model taskId = 
     match model.editing with
     | Some _ -> 
         updateEntry model model.updateForm
-        |> Result.map (fun m -> 
+        |> fun (m, cmd) ->  
             { m with 
                 updateForm = Defaults.defaultTodo
                 editing = None 
-            })
+            }, cmd
     | None -> 
         let todo = 
             match List.tryFind (fun a -> a.taskId = taskId) model.entries with
             | Some x -> x
-            | None -> Defaults.defaultTodo
+            | None-> Defaults.defaultTodo
         { model with 
             updateForm = todo
             editing = Some taskId
-        } |> Ok
+        }, Cmd.none 
 
 // Reuse of Update messages complicates the update function
 // It would be better to have explicit messages for adding and updating,
@@ -133,26 +135,26 @@ let handleTaskUpdate (msg : HandleTaskMsg) (model : Model) =
         | Some _ -> { model with updateForm = x }
         | None   -> { model with addForm = x }
     match msg with
-    | UpdateTask y -> setForm { form with task = y } |> Ok
-    | UpdatePri y ->  setForm { form with priority = y } |> Ok
-    | UpdateDue y ->  setForm { form with due = y } |> Ok
-    | EditTask y  -> editTask model y
+    | UpdateTask y -> setForm { form with task = y }, Cmd.none
+    | UpdatePri y ->  setForm { form with priority = y }, Cmd.none 
+    | UpdateDue y ->  setForm { form with due = Some y }, Cmd.none
+    | EditTask y -> editTask model y
     | EndEdit -> editTask model (form.taskId)
 
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
-    let model' =
-        match msg with
-        | Add y -> addEntry model y
-        | Delete y -> deleteEntry model y
-        | Update y -> updateEntry model y 
-        | Init (Ok x) -> Ok { defaultModel with entries = x }
-        | Init (Error x) -> Error x.Message
-        | NotifyError err -> Ok { model with errorMsg = Some err }
-        | ClearError -> Ok { model with errorMsg = None }
-        | HandleTask x -> handleTaskUpdate x model
-    match model' with
-    | Ok x -> x, Cmd.none
-    | Error err -> model, (Cmd.ofMsg (NotifyError err))
+    // let model' =
+    match msg with
+    | Add y -> addEntry model y
+    | Delete y -> deleteEntry model y
+    | Update y -> updateEntry model y 
+    | Init (Ok x) -> { defaultModel with entries = x }, Cmd.none
+    | Init (Error x) -> model, (Cmd.ofMsg (NotifyError x.Message)) 
+    | NotifyError err -> { model with errorMsg = Some err }, Cmd.none
+    | ClearError -> { model with errorMsg = None }, Cmd.none
+    | HandleTask x -> handleTaskUpdate x model
+    // match model' with
+    // | Ok x -> x, Cmd.none
+    // | Error err -> model, (Cmd.ofMsg (NotifyError err))
 
 let safeComponents =
     let intersperse sep ls =
@@ -170,7 +172,7 @@ let safeComponents =
         |> List.map (fun (desc,link) -> a [ Href link ] [ str desc ] )
         |> intersperse (str ", ")
         |> span [ ]
-    p [ ]
+    p []
         [ strong [] [ str "Toodeloo" ]
           str " powered by: "
           components ]
@@ -306,7 +308,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
                 Button.button [ 
                     Button.Color IsDanger
                     Button.OnClick (fun _ -> dispatch (NotifyError "fooo"))
-                ] [ str "Error" ]
+                ] [ str "Generate error" ]
             ]
             Box.box' [] [ str (string model) ]
         ]
