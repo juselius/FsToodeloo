@@ -5,8 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="../Shared/Shared.fs" />
     <Compile Include="Db.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Shared.fsproj" />
   </ItemGroup>
   <!-- The remaining defininitions are necessary in order to use the SQL type 
   provider with .NET Core. -->
