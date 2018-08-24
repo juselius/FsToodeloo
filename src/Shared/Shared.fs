@@ -17,7 +17,6 @@ type Todo =
 type ITodoProtocol = { 
     createTodo : Todo -> Async<bool> 
     getTodos   : unit -> Async<list<Todo>> 
-    getTodo    : int -> Async<Todo option> 
     updateTodo : Todo -> Async<bool> 
     deleteTodo : int -> Async<unit> 
     }

@@ -14,11 +14,6 @@ let getTodos () : Task<list<Todo>> =
     task {
         return Db.readTodos ()
     }
-let getTodo id : Task<Todo option> =
-    task {
-        return Db.readTodo id
-    }
-
 let updateTodo t =
     task {
         return Db.updateTodo t
@@ -32,7 +27,6 @@ let deleteTodo id =
 let todoApi = {
     createTodo = createTodo >> Async.AwaitTask 
     getTodos   = getTodos   >> Async.AwaitTask
-    getTodo    = getTodo    >> Async.AwaitTask
     updateTodo = updateTodo >> Async.AwaitTask
     deleteTodo = deleteTodo >> Async.AwaitTask
 }
