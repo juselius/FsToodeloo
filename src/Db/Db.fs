@@ -21,6 +21,7 @@ type internal Db =
         ResolutionPath = ResolutionPath,
         UseOptionTypes = true>
 
+// Shorthand type alias
 type internal TodoEntity = Db.dataContext.``dbo.todoEntity``
 
 let internal toTodo (t : TodoEntity) =
@@ -37,7 +38,10 @@ let createTodo (t : Todo) =
     row.Priority <- t.priority
     row.Due <- t.due
     row.Task <- t.task
-    ctx.SubmitUpdates ()
+    try 
+        ctx.SubmitUpdates ()
+        true
+    with _ -> false 
 
 let readTodo id = 
     let ctx = Db.GetDataContext ()
@@ -59,7 +63,7 @@ let readTodos () =
         for i in db.Todo do
             select i
     } 
-    |> Seq.map toTodo 
+    |> Seq.map toTodo |> Seq.toList
 
 let updateTodo t =
     let ctx = Db.GetDataContext ()
@@ -73,7 +77,10 @@ let updateTodo t =
         row.Due <- t.due
         row.Task <- t.task
     )
-    ctx.SubmitUpdates ()
+    try 
+        ctx.SubmitUpdates ()
+        true
+    with _ -> false 
 
 let deleteTodo id =
     let ctx = Db.GetDataContext ()
