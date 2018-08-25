@@ -4,17 +4,17 @@ open Elmish
 open Toodeloo.Shared
 
 type Model =
-    { entries : list<Todo>
+    { entries : Map<int, Todo>
       createForm : Todo
-      updateForm : Todo
+      editForm : Todo
       errorMsg : option<string>
       isEditing : option<TaskId>
     }
 
 let defaultModel = {
-    entries = [] 
+    entries = Map.empty
     createForm = Defaults.defaultTodo
-    updateForm = Defaults.defaultTodo
+    editForm = Defaults.defaultTodo
     errorMsg = None
     isEditing = None
     }
@@ -68,14 +68,16 @@ let init () : Model * Cmd<Msg> =
 let createEntry (model : Model) (x : Todo) =
     let todo = model.entries
     let newId =
-        if todo.Length > 0 then
-            todo |> List.map (fun a -> a.taskId) |>  List.max |> (+) 1
+        if not todo.IsEmpty then
+            Map.toArray todo 
+            |> Array.maxBy (fun (a, _) -> a) 
+            |> fun (x, _) -> x + 1
         else
             0
     // Example validation, perform any kind of validation here and return
     match x.taskId with
     | 0 -> 
-        let todo' = { x with taskId = newId } :: todo
+        let todo' = Map.add newId { x with taskId = newId } todo
         let model' = { model with entries = todo' }
         let cmd = 
             Cmd.ofAsync 
@@ -88,47 +90,40 @@ let createEntry (model : Model) (x : Todo) =
 // Both delete and update are complicated by using lists
 // Set would be a better choice 
 let deleteEntry (model : Model) (x : int) =
-    List.filter (fun a -> a.taskId <> x) model.entries
-    |> fun e ->  
-        let model' = { model with entries = e }
-        let cmd = 
-            Cmd.ofAsync 
-                Server.api.deleteTodo x
-                (Msg.ApiCall << fun _ -> ApiCallMsg.TaskDeleted)
-                (notifyExn "deleteEntry")
-        model', cmd
+    let model' = { model with entries = Map.remove x model.entries }
+    let cmd = 
+        Cmd.ofAsync 
+            Server.api.deleteTodo x
+            (Msg.ApiCall << fun _ -> ApiCallMsg.TaskDeleted)
+            (notifyExn "deleteEntry")
+    model', cmd
 
 let updateEntry (model : Model) (x : Todo) =
-    let removeEntry x =
-        List.filter (fun b -> b.taskId <> x.taskId) model.entries
-    List.tryFind (fun a -> a.taskId = x.taskId) model.entries
-    |> function 
-    | Some _ ->
-        let model' = { model with entries = x :: removeEntry x }
-        let cmd = 
-            Cmd.ofAsync 
-                Server.api.createTodo x
-                (Msg.ApiCall << ApiCallMsg.TaskUpdated)
-                (notifyExn "updateEntry")
-        model', cmd
-    | None -> model, (Cmd.ofMsg (NotifyError "Update failed")) 
+    let entries' = Map.add x.taskId x model.entries
+    let model' = { model with entries = entries' }
+    let cmd = 
+        Cmd.ofAsync 
+            Server.api.createTodo x
+            (Msg.ApiCall << ApiCallMsg.TaskUpdated)
+            (notifyExn "updateEntry")
+    model', cmd
 
 let editTask model taskId = 
     match model.isEditing with
     | Some _ -> 
-        updateEntry model model.updateForm
+        updateEntry model model.editForm
         |> fun (m, cmd) ->  
             { m with 
-                updateForm = Defaults.defaultTodo
+                editForm = Defaults.defaultTodo
                 isEditing = None 
             }, cmd
     | None -> 
         let todo = 
-            match List.tryFind (fun a -> a.taskId = taskId) model.entries with
+            match Map.tryFind taskId model.entries with
             | Some x -> x
             | None-> Defaults.defaultTodo
         { model with 
-            updateForm = todo
+            editForm = todo
             isEditing = Some taskId
         }, Cmd.none 
 
@@ -138,11 +133,11 @@ let editTask model taskId =
 let handleTaskUpdate (msg : HandleTaskMsg) (model : Model) =
     let form = 
         match model.isEditing with
-        | Some _ -> model.updateForm
+        | Some _ -> model.editForm
         | None   -> model.createForm
     let setForm x = 
         match model.isEditing with
-        | Some _ -> { model with updateForm = x }
+        | Some _ -> { model with editForm = x }
         | None   -> { model with createForm = x }
     match msg with
     | UpdateTask y -> setForm { form with task = y }, Cmd.none
@@ -158,7 +153,8 @@ let apiCallHandler (msg : ApiCallMsg) (model : Model) =
         | Ok () -> model, Cmd.none 
         | Error err -> model, notifyErr ("Create failed: " + err)
     | TasksRead t -> 
-        { model with entries = t }, Cmd.none 
+        let todo = t |> List.map (fun x -> (x.taskId, x)) |> Map.ofList
+        { model with entries = todo }, Cmd.none 
     | TaskUpdated b -> 
         match b with
         | Ok () -> model, Cmd.none 
