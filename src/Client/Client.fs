@@ -12,7 +12,7 @@ open Elmish.HMR
 
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
     match msg with
-    | Add y -> addEntry model y
+    | Add y -> createEntry model y
     | Delete y -> deleteEntry model y
     | Update y -> updateEntry model y 
     | Init (Ok x) -> { defaultModel with entries = x }, Cmd.none

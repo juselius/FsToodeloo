@@ -28,9 +28,9 @@ type HandleTaskMsg =
 | EndEdit 
 
 type ApiCallMsg =
-| TaskCreated of bool
+| TaskCreated of Result<unit, string>
 | TasksRead of Todo list
-| TaskUpdated of bool
+| TaskUpdated of Result<unit, string>
 | TaskDeleted 
 
 type Msg =
@@ -52,7 +52,7 @@ module Server =
             use_route_builder Route.builder
         }
 
-let notifyExn (e : exn) = e.Message |> Msg.NotifyError
+let notifyExn s (e : exn) = (s + ": " + e.Message) |> Msg.NotifyError
 
 let notifyErr e = Cmd.ofMsg (Msg.NotifyError e)
 
@@ -65,7 +65,7 @@ let init () : Model * Cmd<Msg> =
             (Error >> Init)
     model, cmd
 
-let addEntry (model : Model) (x : Todo) =
+let createEntry (model : Model) (x : Todo) =
     let todo = model.entries
     let newId =
         if todo.Length > 0 then
@@ -81,7 +81,7 @@ let addEntry (model : Model) (x : Todo) =
             Cmd.ofAsync 
                 Server.api.createTodo x
                 (Msg.ApiCall << ApiCallMsg.TaskCreated)
-                notifyExn
+                (notifyExn "createEntry")
         model', cmd
     | _ -> model, notifyErr "What, what in the b***?"
 
@@ -95,7 +95,7 @@ let deleteEntry (model : Model) (x : int) =
             Cmd.ofAsync 
                 Server.api.deleteTodo x
                 (Msg.ApiCall << fun _ -> ApiCallMsg.TaskDeleted)
-                notifyExn
+                (notifyExn "deleteEntry")
         model', cmd
 
 let updateEntry (model : Model) (x : Todo) =
@@ -109,7 +109,7 @@ let updateEntry (model : Model) (x : Todo) =
             Cmd.ofAsync 
                 Server.api.createTodo x
                 (Msg.ApiCall << ApiCallMsg.TaskUpdated)
-                notifyExn
+                (notifyExn "updateEntry")
         model', cmd
     | None -> model, (Cmd.ofMsg (NotifyError "Update failed")) 
 
@@ -154,9 +154,13 @@ let handleTaskUpdate (msg : HandleTaskMsg) (model : Model) =
 let apiCallHandler (msg : ApiCallMsg) (model : Model) =
     match msg with
     | TaskCreated b -> 
-        if b then model, Cmd.none else model, notifyErr "Create failed"
+        match b with
+        | Ok () -> model, Cmd.none 
+        | Error err -> model, notifyErr ("Create failed: " + err)
     | TasksRead t -> 
         { model with entries = t }, Cmd.none 
     | TaskUpdated b -> 
-        if b then model, Cmd.none else model, notifyErr "Update failed"
+        match b with
+        | Ok () -> model, Cmd.none 
+        | Error err -> model, notifyErr ("Update failed: " + err)
     | TaskDeleted -> model, Cmd.none

@@ -15,9 +15,9 @@ type Todo =
 /// Every record field must have the type : 'a -> Async<'b> where 'a can also be `unit`
 /// Add more such fields, implement them on the server and they be directly available on client
 type ITodoProtocol = { 
-    createTodo : Todo -> Async<bool> 
+    createTodo : Todo -> Async<Result<unit, string>> 
     getTodos   : unit -> Async<list<Todo>> 
-    updateTodo : Todo -> Async<bool> 
+    updateTodo : Todo -> Async<Result<unit, string>>
     deleteTodo : int -> Async<unit> 
     }
 

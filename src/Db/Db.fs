@@ -40,8 +40,8 @@ let createTodo (t : Todo) =
     row.Task <- t.task
     try 
         ctx.SubmitUpdates ()
-        true
-    with _ -> false 
+        Ok ()
+    with ex -> Error ("createTodo: " + ex.Message)
 
 let readTodo id = 
     let ctx = Db.GetDataContext ()
@@ -79,8 +79,8 @@ let updateTodo t =
     )
     try 
         ctx.SubmitUpdates ()
-        true
-    with _ -> false 
+        Ok ()
+    with ex -> Error ("updateTodo: " + ex.Message)
 
 let deleteTodo id =
     let ctx = Db.GetDataContext ()
