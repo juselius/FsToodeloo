@@ -45,7 +45,7 @@ let button txt onClick =
     ] [ str txt ]
 
 let formAddTask (model : Model) (dispatch : Msg -> unit) =
-    let dispatch' = HandleTask >> dispatch
+    let dispatch' = CreateFormMsg >> dispatch
     p [] [
         Field.div [] [ Label.label [] [ str "Task" ] ]
         Control.div [] [ Input.text [
@@ -57,83 +57,82 @@ let formAddTask (model : Model) (dispatch : Msg -> unit) =
         Field.div [] [ Label.label [] [ str "Priority" ] ]
         Control.div [] [ Input.number [
           Input.OnChange (fun e -> dispatch' (UpdatePri (int e.Value)))
-          Input.Placeholder "0" 
+          Input.Placeholder "1" 
           Input.Value (string model.createForm.priority)
           ] 
         ]
         Field.div [] [ Label.label [] [ str "Due" ] ]
         Control.div [] [ Input.date [
-          Input.OnChange (fun e -> dispatch' (UpdateDue (System.DateTime.Parse e.Value)))
-          Input.Placeholder "date" 
-          Input.Value (string model.createForm.due)
+          Input.OnChange (fun e -> 
+            dispatch' (UpdateDue (System.DateTime.Parse e.Value)))
           ] 
         ]
         Field.div [] [ Label.label [] [ str "" ] ]
-        Control.div [] [ button "Add entry" (fun _ -> dispatch (Add model.createForm)) ]
+        Control.div [] [ button "Add entry" (fun _ -> 
+            dispatch (Create model.createForm)) ]
     ]
 
 // Add a double click event to each editable td
 // It would be better to make the whole row double clickable
-let clickToEdit t txt (dispatch : Msg -> unit) = 
+let clickToEdit id txt (dispatch : Msg -> unit) = 
     td [
-        OnDoubleClick (fun _ -> dispatch <| HandleTask (EditTask t.taskId))
+        OnDoubleClick (fun _ -> dispatch <| StartEdit id)
     ] [ str txt ]
 
-let showTaskTable (model : Model) (dispatch : Msg -> unit) =
-    let editable task txt elements =
-        match model.isEditing with
-        | Some n when n = task.taskId -> td [] elements
-        | Some _ -> clickToEdit task txt dispatch
-        | None   -> clickToEdit task txt dispatch
+let mkEntryTable (model : Model) (dispatch : Msg -> unit) =
+    let editable id txt editor =
+        match model.editing with
+        | Some n when n = id -> td [] editor
+        | _ -> clickToEdit id txt dispatch
     let task t = 
-        editable t t.task [ Input.text [ 
-                Input.DefaultValue t.task
-                Input.OnChange (fun e -> dispatch <| HandleTask (UpdateTask e.Value))
-          ]] 
+        editable t.taskId t.task [ Input.text [ 
+            Input.DefaultValue t.task
+            Input.OnChange (fun e -> dispatch <| Update (UpdateTask e.Value))
+        ]] 
     let due t = 
-        editable t (string t.due) [ Input.date [ 
-                Input.DefaultValue (string t.due)
-                Input.OnChange (fun e -> 
-                    dispatch <| HandleTask (
-                        UpdateDue <| System.DateTime.Parse e.Value)
-                    )
-          ]] 
+        editable t.taskId (string t.due) [ Input.date [ 
+            Input.DefaultValue (string t.due)
+            Input.OnChange (fun e -> 
+                dispatch <| Update (
+                    UpdateDue <| System.DateTime.Parse e.Value)
+                )
+        ]] 
     let pri t = 
-        editable t (string t.priority) [ Input.number [ 
-                Input.DefaultValue (string t.priority)
-                Input.OnChange (fun e -> dispatch <| HandleTask (UpdatePri <| int e.Value))
-          ]] 
+        editable t.taskId (string t.priority) [ Input.number [ 
+            Input.DefaultValue (string t.priority)
+            Input.OnChange (fun e -> dispatch <| Update (UpdatePri <| int e.Value))
+       ]] 
     let button i =
-            match model.isEditing with
-            | Some n when n = i.taskId ->
-                td [] [
-                    Button.button [
-                        Button.Color IsSuccess
-                        Button.IsOutlined
-                        Button.OnClick (fun _ -> dispatch <| HandleTask EndEdit)
-                    ] [ str "Save" ]
-                ]
-            | _ ->
-                td [] [
-                    Button.button [
-                        Button.Color IsDanger
-                        Button.IsOutlined
-                        Button.OnClick (fun _ -> dispatch <| Delete i.taskId)
-                    ] [ str "X" ]
-                ]
+        match model.editing with
+        | Some n when n = i.taskId ->
+            td [] [
+                Button.button [
+                    Button.Color IsSuccess
+                    Button.IsOutlined
+                    Button.OnClick (fun _ -> dispatch <| SaveEdit)
+                ] [ str "Save" ]
+            ]
+        | _ -> td [] [
+            Button.button [
+                Button.Color IsDanger
+                Button.IsOutlined
+                Button.OnClick (fun _ -> dispatch <| Delete i.taskId)
+            ] [ str "X" ]
+        ]
     let cols = [ "Id"; "Priority"; "Task"; "Due"; "Delete" ]
     Table.table [] [
         thead [] [
             for i in cols do yield td [] [str i]
         ]
         tbody [] [
-            for i in model.entries do
+            for p in model.entries do
+                let t = p.Value
                 yield tr [] [
-                    td [] [ str (string i.taskId) ]
-                    pri i
-                    task i
-                    due i
-                    button i
+                    td [] [ str (string t.taskId) ]
+                    pri t
+                    task t
+                    due t
+                    button t
                 ]
           ]
       ]
@@ -157,11 +156,12 @@ let view (model : Model) (dispatch : Msg -> unit) =
                 Heading.h3 [] [ str "My Toodeloo" ]
                 formAddTask model dispatch
             ]
-            Box.box' [] [ showTaskTable model dispatch ]
+            Box.box' [] [ mkEntryTable model dispatch ]
             Content.content [] [
                 Button.button [ 
                     Button.Color IsDanger
-                    Button.OnClick (fun _ -> dispatch (NotifyError "fooo"))
+                    Button.OnClick (fun _ -> 
+                        dispatch (NotifyError "This is an error."))
                 ] [ str "Generate error" ]
             ]
             Box.box' [] [ str (string model) ]

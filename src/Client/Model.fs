@@ -4,28 +4,24 @@ open Elmish
 open Toodeloo.Shared
 
 type Model =
-    { entries : Map<int, Todo>
+    { entries    : Map<int, Todo>
       createForm : Todo
-      editForm : Todo
-      errorMsg : option<string>
-      isEditing : option<TaskId>
+      errorMsg   : string option
+      editing    : int option
     }
 
 let defaultModel = {
     entries = Map.empty
     createForm = Defaults.defaultTodo
-    editForm = Defaults.defaultTodo
     errorMsg = None
-    isEditing = None
+    editing = None
     }
 
 // Example how to split Msg into submessages
-type HandleTaskMsg =
+type UpdateEntryMsg =
 | UpdatePri of int
 | UpdateTask of string
 | UpdateDue of System.DateTime
-| EditTask of int
-| EndEdit 
 
 type ApiCallMsg =
 | TaskCreated of Result<unit, string>
@@ -34,14 +30,17 @@ type ApiCallMsg =
 | TaskDeleted 
 
 type Msg =
-| Add of Todo
+| Read of Result<list<Todo>, exn>
+| Create of Todo
+| CreateFormMsg of UpdateEntryMsg
 | Delete of int
-| Update of Todo
-| Init of Result<list<Todo>, exn>
-| HandleTask of HandleTaskMsg
+| Update of UpdateEntryMsg
 | NotifyError of string
 | ClearError
 | ApiCall of ApiCallMsg
+| StartEdit of int
+| SaveEdit 
+| CancelEdit 
 
 module Server =
     open Fable.Remoting.Client
@@ -61,11 +60,11 @@ let init () : Model * Cmd<Msg> =
     let cmd =
         Cmd.ofAsync
             Server.api.getTodos ()
-            (Ok >> Init)
-            (Error >> Init)
+            (Ok >> Read)
+            (Error >> Read)
     model, cmd
 
-let createEntry (model : Model) (x : Todo) =
+let createEntry (x : Todo) (model : Model) =
     let todo = model.entries
     let newId =
         if not todo.IsEmpty then
@@ -77,8 +76,12 @@ let createEntry (model : Model) (x : Todo) =
     // Example validation, perform any kind of validation here and return
     match x.taskId with
     | 0 -> 
-        let todo' = Map.add newId { x with taskId = newId } todo
-        let model' = { model with entries = todo' }
+        let todo' = todo |> Map.add newId { x with taskId = newId } 
+        let model' = { 
+            model with 
+                entries = todo' 
+                createForm = Shared.Defaults.defaultTodo
+            }
         let cmd = 
             Cmd.ofAsync 
                 Server.api.createTodo x
@@ -87,9 +90,7 @@ let createEntry (model : Model) (x : Todo) =
         model', cmd
     | _ -> model, notifyErr "What, what in the b***?"
 
-// Both delete and update are complicated by using lists
-// Set would be a better choice 
-let deleteEntry (model : Model) (x : int) =
+let deleteEntry (x : int) (model : Model) =
     let model' = { model with entries = Map.remove x model.entries }
     let cmd = 
         Cmd.ofAsync 
@@ -98,53 +99,51 @@ let deleteEntry (model : Model) (x : int) =
             (notifyExn "deleteEntry")
     model', cmd
 
-let updateEntry (model : Model) (x : Todo) =
-    let entries' = Map.add x.taskId x model.entries
-    let model' = { model with entries = entries' }
+let editEntry (msg : UpdateEntryMsg) (model : Model) =
+    let entry = Map.find model.editing.Value model.entries
+    match msg with
+    | UpdateTask t -> { entry with task = t}
+    | UpdatePri p -> { entry with priority = p}
+    | UpdateDue d -> { entry with due = Some d}
+
+let updateEntry (msg : UpdateEntryMsg) (model : Model) =
+    let entry = editEntry msg model
+    let model' = { 
+        model with 
+            entries = Map.add entry.taskId entry model.entries
+        }
+    model', Cmd.none
+
+let startEdit id model =
+    let model' = { 
+        model with 
+            editing = Some id 
+        }
+    model', Cmd.none
+
+let saveEntry model =
+    let model' = {
+        model with 
+            // entries = 
+            //     model.entries 
+            //     |> Map.add model.editing.Value model.createForm
+            // createForm = Shared.Defaults.defaultTodo
+            editing = None 
+        }
     let cmd = 
         Cmd.ofAsync 
-            Server.api.createTodo x
+            Server.api.updateTodo model.createForm
             (Msg.ApiCall << ApiCallMsg.TaskUpdated)
             (notifyExn "updateEntry")
     model', cmd
 
-let editTask model taskId = 
-    match model.isEditing with
-    | Some _ -> 
-        updateEntry model model.editForm
-        |> fun (m, cmd) ->  
-            { m with 
-                editForm = Defaults.defaultTodo
-                isEditing = None 
-            }, cmd
-    | None -> 
-        let todo = 
-            match Map.tryFind taskId model.entries with
-            | Some x -> x
-            | None-> Defaults.defaultTodo
-        { model with 
-            editForm = todo
-            isEditing = Some taskId
-        }, Cmd.none 
-
-// Reuse of Update messages complicates the update function
-// It would be better to have explicit messages for adding and updating,
-// and it would make the code easier to read and undestand. 
-let handleTaskUpdate (msg : HandleTaskMsg) (model : Model) =
-    let form = 
-        match model.isEditing with
-        | Some _ -> model.editForm
-        | None   -> model.createForm
-    let setForm x = 
-        match model.isEditing with
-        | Some _ -> { model with editForm = x }
-        | None   -> { model with createForm = x }
-    match msg with
-    | UpdateTask y -> setForm { form with task = y }, Cmd.none
-    | UpdatePri y ->  setForm { form with priority = y }, Cmd.none 
-    | UpdateDue y ->  setForm { form with due = Some y }, Cmd.none
-    | EditTask y -> editTask model y
-    | EndEdit -> editTask model (form.taskId)
+let handleCreateForm (msg : UpdateEntryMsg) (model : Model) =
+    let entry = 
+        match msg with
+        | UpdatePri y -> { model.createForm with priority = y }
+        | UpdateDue y ->  { model.createForm with due = Some y }
+        | UpdateTask y -> { model.createForm with task = y }
+    { model with createForm = entry }, Cmd.none
 
 let apiCallHandler (msg : ApiCallMsg) (model : Model) =
     match msg with
@@ -160,3 +159,12 @@ let apiCallHandler (msg : ApiCallMsg) (model : Model) =
         | Ok () -> model, Cmd.none 
         | Error err -> model, notifyErr ("Update failed: " + err)
     | TaskDeleted -> model, Cmd.none
+
+let cancelEdit model =
+    let model' = { model with editing = None }
+    let cmd = 
+        Cmd.ofAsync 
+            Server.api.getTodos ()
+            (Msg.ApiCall << ApiCallMsg.TasksRead)
+            (notifyExn "readEntries")
+    model', cmd

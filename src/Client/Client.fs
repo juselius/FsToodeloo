@@ -12,17 +12,20 @@ open Elmish.HMR
 
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
     match msg with
-    | Add y -> createEntry model y
-    | Delete y -> deleteEntry model y
-    | Update y -> updateEntry model y 
-    | Init (Ok x) -> 
+    | Create y -> createEntry y model 
+    | Read (Ok x) -> 
         let todo = x |> List.map (fun t -> (t.taskId, t)) |> Map.ofList
         { defaultModel with entries = todo }, Cmd.none
-    | Init (Error x) -> model, (Cmd.ofMsg (NotifyError x.Message)) 
+    | Read (Error x) -> model, (Cmd.ofMsg (NotifyError x.Message)) 
+    | Update msg -> updateEntry msg model 
+    | Delete y -> deleteEntry y model 
     | NotifyError err -> { model with errorMsg = Some err }, Cmd.none
+    | ApiCall msg -> apiCallHandler msg model
+    | CreateFormMsg msg -> handleCreateForm msg model
     | ClearError -> { model with errorMsg = None }, Cmd.none
-    | HandleTask x -> handleTaskUpdate x model
-    | ApiCall x -> apiCallHandler x model
+    | StartEdit id -> startEdit id model 
+    | SaveEdit -> saveEntry model
+    | CancelEdit -> cancelEdit model 
 
 Program.mkProgram init update view
 #if DEBUG
